@@ -1,0 +1,27 @@
+{
+  "name": "venuestaff-bot",
+  "version": "1.0.0",
+  "description": "VenueStaff Bot helps FFXIV venue owners schedule staff through Discord buttons, menus, modals, and embeds.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "keywords": [
+    "discord",
+    "discord.js",
+    "ffxiv",
+    "venue",
+    "staff",
+    "scheduling"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  }
+}

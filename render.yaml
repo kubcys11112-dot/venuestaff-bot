@@ -1,0 +1,20 @@
+services:
+  - type: worker
+    name: venuestaff-bot
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run deploy && npm start
+    autoDeployTrigger: commit
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: DATABASE_PATH
+        value: /data/database.json
+    disk:
+      name: venuestaff-data
+      mountPath: /data
+      sizeGB: 1
