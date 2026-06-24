@@ -96,36 +96,12 @@ function createEvent(eventDetails) {
   return event;
 }
 
-function getEvent(eventId) {
-  return readDatabase().events.find((event) => event.id === eventId) || null;
-}
-
 function getEventByIdAndGuild(eventId, guildId) {
   return readDatabase().events.find((event) => event.id === eventId && event.guildId === guildId) || null;
 }
 
 function getEventsForGuild(guildId) {
   return readDatabase().events.filter((event) => event.guildId === guildId);
-}
-
-function updateEvent(eventId, updater) {
-  const data = readDatabase();
-  const index = data.events.findIndex((event) => event.id === eventId);
-
-  if (index === -1) {
-    return null;
-  }
-
-  const currentEvent = data.events[index];
-  const updatedEvent = typeof updater === 'function'
-    ? updater(currentEvent)
-    : { ...currentEvent, ...updater };
-
-  updatedEvent.updatedAt = new Date().toISOString();
-  data.events[index] = updatedEvent;
-  writeDatabase(data);
-
-  return updatedEvent;
 }
 
 function updateEventByIdAndGuild(eventId, guildId, updater) {
@@ -148,34 +124,12 @@ function updateEventByIdAndGuild(eventId, guildId, updater) {
   return updatedEvent;
 }
 
-function deleteEvent(eventId) {
-  const data = readDatabase();
-  const originalLength = data.events.length;
-  data.events = data.events.filter((event) => event.id !== eventId);
-  writeDatabase(data);
-  return data.events.length !== originalLength;
-}
-
 function deleteEventByIdAndGuild(eventId, guildId) {
   const data = readDatabase();
   const originalLength = data.events.length;
   data.events = data.events.filter((event) => event.id !== eventId || event.guildId !== guildId);
   writeDatabase(data);
   return data.events.length !== originalLength;
-}
-
-function upsertResponse(eventId, userId, response) {
-  return updateEvent(eventId, (event) => ({
-    ...event,
-    responses: {
-      ...event.responses,
-      [userId]: {
-        ...(event.responses[userId] || {}),
-        ...response,
-        updatedAt: new Date().toISOString()
-      }
-    }
-  }));
 }
 
 function upsertResponseByIdAndGuild(eventId, guildId, userId, response) {
@@ -194,14 +148,10 @@ function upsertResponseByIdAndGuild(eventId, guildId, userId, response) {
 
 module.exports = {
   createEvent,
-  deleteEvent,
   deleteEventByIdAndGuild,
   defaultRequiredRoles,
-  getEvent,
   getEventByIdAndGuild,
   getEventsForGuild,
-  updateEvent,
   updateEventByIdAndGuild,
-  upsertResponse,
   upsertResponseByIdAndGuild
 };

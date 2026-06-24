@@ -2,6 +2,8 @@
 
 VenueStaff Bot is a first working version of a Discord staff scheduling bot for FFXIV venue owners. Managers create a venue event with `/event create`, and staff respond through Discord buttons, select menus, modals, and embeds instead of typing chat commands.
 
+This is a public multi-server bot. It uses global slash commands only and separates event data by the Discord server where each interaction happens.
+
 ## Features
 
 - `/event create` slash command for owners and managers
@@ -72,6 +74,8 @@ DISCORD_TOKEN=your_bot_token_here
 CLIENT_ID=your_discord_application_client_id_here
 DATABASE_PATH=data/database.json
 ```
+
+Commands are global, and events are separated by the Discord server where the interaction happens.
 
 Members with Administrator or Manage Server permission can create and manage events.
 

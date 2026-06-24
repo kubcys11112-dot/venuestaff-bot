@@ -301,8 +301,12 @@ function buildDashboardPayload(event) {
   };
 }
 
-async function updateDashboard(client, event) {
+async function updateDashboard(client, event, guildId) {
   if (!event) {
+    return false;
+  }
+
+  if (!guildId || event.guildId !== guildId) {
     return false;
   }
 
@@ -517,7 +521,7 @@ async function handleStaffButton(interaction, action, event) {
       status: 'attending'
     });
 
-    await updateDashboard(interaction.client, updatedEvent);
+    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
       content: 'Marked as attending. Choose your role and available times.',
       components: buildStaffControls(updatedEvent, interaction.user.id),
@@ -532,7 +536,7 @@ async function handleStaffButton(interaction, action, event) {
       status: 'maybe'
     });
 
-    await updateDashboard(interaction.client, updatedEvent);
+    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
       content: 'Marked as maybe. You can come back and change this any time before the schedule is locked.',
       ephemeral: true
@@ -549,7 +553,7 @@ async function handleStaffButton(interaction, action, event) {
       endTime: null
     });
 
-    await updateDashboard(interaction.client, updatedEvent);
+    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
       content: "Marked as can't attend. Thanks for updating the schedule.",
       ephemeral: true
@@ -578,7 +582,7 @@ async function handleManagerButton(interaction, action, event) {
 
   if (action === 'lock') {
     const updatedEvent = updateEventByIdAndGuild(event.id, interaction.guildId, { locked: !event.locked });
-    await updateDashboard(interaction.client, updatedEvent);
+    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
       content: updatedEvent.locked ? 'Schedule locked.' : 'Schedule unlocked.',
       ephemeral: true
@@ -663,7 +667,7 @@ async function handleSelectMenu(interaction, action, event) {
     [field]: interaction.values[0]
   });
 
-  await updateDashboard(interaction.client, updatedEvent);
+  await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
   await interaction.update({
     content: 'Saved. Choose or adjust anything else you need.',
     components: buildStaffControls(updatedEvent, interaction.user.id)
@@ -685,7 +689,7 @@ async function handleNotesModal(interaction, event) {
     notes: getModalText(interaction, 'notes')
   });
 
-  await updateDashboard(interaction.client, updatedEvent);
+  await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
   await interaction.reply({
     content: 'Notes saved.',
     ephemeral: true
@@ -711,7 +715,7 @@ async function handleEditEventModal(interaction, event) {
     description: getModalText(interaction, 'description')
   });
 
-  await updateDashboard(interaction.client, updatedEvent);
+  await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
   await interaction.reply({
     content: 'Event updated.',
     ephemeral: true
@@ -763,7 +767,7 @@ async function handleRequirementsModal(interaction, event) {
     return;
   }
 
-  const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent);
+  const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
 
   console.log('[requiredRoles:saved]', {
     eventId: event.id,
