@@ -147,51 +147,47 @@ function formatStaffList(responses, emptyText) {
 function checkRoleCoverage(event) {
   const attending = getResponses(event, 'attending');
   const requiredRoles = normalizeRequiredRoles(event.requiredRoles);
-  const eventStart = event.startTime;
-  const eventEnd = normalizeEndMinutes(eventStart, event.endTime);
   const coverageLines = [];
-  const warningLines = [];
 
   for (const [role, requiredCount] of Object.entries(requiredRoles)) {
     const needed = Number(requiredCount) || 0;
     const staffForRole = attending.filter((response) => response.role === role);
     const count = staffForRole.length;
     coverageLines.push(`${getRoleEmoji(role)} ${role}: ${count}/${needed}`);
+  }
+
+  return {
+    coverageText: coverageLines.length ? coverageLines.join('\n') : 'No required roles set yet.'
+  };
+}
+
+function buildMissingRoles(event) {
+  const attending = getResponses(event, 'attending');
+  const requiredRoles = event.requiredRoles || {};
+  const missingRoles = [];
+
+  for (const [roleName, requiredCount] of Object.entries(requiredRoles)) {
+    const needed = Number(requiredCount) || 0;
 
     if (needed <= 0) {
       continue;
     }
 
-    if (count < needed) {
-      warningLines.push(`Missing ${needed - count} ${role}`);
-      continue;
+    const confirmedCount = attending.filter((response) => response.role === roleName).length;
+
+    if (confirmedCount < needed) {
+      missingRoles.push(`Missing ${needed - confirmedCount} ${roleName}`);
     }
-
-    if (eventEnd !== null && staffForRole.length > 0) {
-      const availableAtEnd = staffForRole.filter((response) => {
-        const responseEnd = normalizeEndMinutes(eventStart, response.endTime || event.endTime);
-        return responseEnd === null || responseEnd >= eventEnd;
-      });
-
-      if (availableAtEnd.length < needed) {
-        const earliestShortEnd = Math.min(
-          ...staffForRole
-            .map((response) => normalizeEndMinutes(eventStart, response.endTime || event.endTime))
-            .filter((minutes) => minutes !== null && minutes < eventEnd)
-        );
-
-        warningLines.push(`Missing ${needed - availableAtEnd.length} ${role} after ${formatMinutes(earliestShortEnd)}`);
-        continue;
-      }
-    }
-
-    warningLines.push(`${role} coverage full`);
   }
 
-  return {
-    coverageText: coverageLines.length ? coverageLines.join('\n') : 'No required roles set yet.',
-    warningText: warningLines.length ? warningLines.join('\n') : 'No coverage warnings.'
-  };
+  console.log('[dashboard:missingRoles]', {
+    eventId: event.id,
+    guildId: event.guildId,
+    requiredRoles,
+    missingRoles
+  });
+
+  return missingRoles.length ? missingRoles.join('\n') : 'No missing roles.';
 }
 
 function buildDashboardPayload(event) {
@@ -199,6 +195,7 @@ function buildDashboardPayload(event) {
   const maybe = getResponses(event, 'maybe');
   const unavailable = getResponses(event, 'unavailable');
   const coverage = checkRoleCoverage(event);
+  const missingRolesText = buildMissingRoles(event);
 
   const embed = new EmbedBuilder()
     .setColor(event.locked ? 0x777777 : 0x5865f2)
@@ -232,7 +229,7 @@ function buildDashboardPayload(event) {
       },
       {
         name: 'Missing Roles',
-        value: coverage.warningText
+        value: missingRolesText
       }
     )
     .setFooter({ text: `VenueStaff Bot • Event ID ${event.id.slice(0, 8)}` })
