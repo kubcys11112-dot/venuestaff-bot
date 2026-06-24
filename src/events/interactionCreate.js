@@ -13,10 +13,11 @@ const {
 
 const {
   createEvent,
-  deleteEvent,
-  getEvent,
-  updateEvent,
-  upsertResponse
+  defaultRequiredRoles,
+  deleteEventByIdAndGuild,
+  getEventByIdAndGuild,
+  updateEventByIdAndGuild,
+  upsertResponseByIdAndGuild
 } = require('../database');
 const { isManager } = require('../commands/event');
 
@@ -37,6 +38,20 @@ const roleOptions = [
 const schedulableRoles = roleOptions
   .map((role) => role.value)
   .filter((role) => role !== 'Other');
+
+function normalizeRequiredRoles(requiredRoles = {}) {
+  return {
+    ...defaultRequiredRoles,
+    ...requiredRoles
+  };
+}
+
+function getRequiredRoleNames(event) {
+  return Array.from(new Set([
+    ...schedulableRoles,
+    ...Object.keys(event.requiredRoles || {})
+  ]));
+}
 
 const staffTimeOptions = [
   '18:00',
@@ -131,7 +146,7 @@ function formatStaffList(responses, emptyText) {
 
 function checkRoleCoverage(event) {
   const attending = getResponses(event, 'attending');
-  const requiredRoles = event.requiredRoles || {};
+  const requiredRoles = normalizeRequiredRoles(event.requiredRoles);
   const eventStart = event.startTime;
   const eventEnd = normalizeEndMinutes(eventStart, event.endTime);
   const coverageLines = [];
@@ -139,14 +154,13 @@ function checkRoleCoverage(event) {
 
   for (const [role, requiredCount] of Object.entries(requiredRoles)) {
     const needed = Number(requiredCount) || 0;
+    const staffForRole = attending.filter((response) => response.role === role);
+    const count = staffForRole.length;
+    coverageLines.push(`${getRoleEmoji(role)} ${role}: ${count}/${needed}`);
 
     if (needed <= 0) {
       continue;
     }
-
-    const staffForRole = attending.filter((response) => response.role === role);
-    const count = staffForRole.length;
-    coverageLines.push(`${getRoleEmoji(role)} ${role}: ${count}/${needed}`);
 
     if (count < needed) {
       warningLines.push(`Missing ${needed - count} ${role}`);
@@ -288,23 +302,28 @@ function buildDashboardPayload(event) {
 }
 
 async function updateDashboard(client, event) {
+  if (!event) {
+    return false;
+  }
+
   if (!event.channelId || !event.messageId) {
-    return;
+    return false;
   }
 
   const channel = await client.channels.fetch(event.channelId).catch(() => null);
 
   if (!channel?.messages) {
-    return;
+    return false;
   }
 
   const message = await channel.messages.fetch(event.messageId).catch(() => null);
 
   if (!message) {
-    return;
+    return false;
   }
 
   await message.edit(buildDashboardPayload(event));
+  return true;
 }
 
 function buildStaffControls(event, userId) {
@@ -410,7 +429,7 @@ function buildEditEventModal(event) {
 }
 
 function buildRequirementsModal(event) {
-  const requiredRoles = event.requiredRoles || {};
+  const requiredRoles = normalizeRequiredRoles(event.requiredRoles);
   const modal = new ModalBuilder()
     .setCustomId(`event:requirementsModal:${event.id}`)
     .setTitle('Set required roles');
@@ -421,7 +440,7 @@ function buildRequirementsModal(event) {
     .setStyle(TextInputStyle.Paragraph)
     .setRequired(true)
     .setMaxLength(1000)
-    .setValue(schedulableRoles
+    .setValue(getRequiredRoleNames(event)
       .map((role) => `${role}: ${requiredRoles[role] ?? 0}`)
       .join('\n'));
 
@@ -464,24 +483,18 @@ async function handleCreateEventModal(interaction) {
     fetchReply: true
   });
 
-  updateEvent(event.id, {
+  updateEventByIdAndGuild(event.id, interaction.guildId, {
     channelId: message.channelId,
     messageId: message.id
   });
 }
 
 function getEventForInteraction(interaction, eventId) {
-  const event = getEvent(eventId);
-
-  if (!event) {
+  if (!interaction.guildId) {
     return null;
   }
 
-  if (event.guildId !== interaction.guildId) {
-    return null;
-  }
-
-  return event;
+  return getEventByIdAndGuild(eventId, interaction.guildId);
 }
 
 async function handleStaffButton(interaction, action, event) {
@@ -499,7 +512,7 @@ async function handleStaffButton(interaction, action, event) {
   };
 
   if (action === 'attend') {
-    const updatedEvent = upsertResponse(event.id, interaction.user.id, {
+    const updatedEvent = upsertResponseByIdAndGuild(event.id, interaction.guildId, interaction.user.id, {
       ...baseResponse,
       status: 'attending'
     });
@@ -514,7 +527,7 @@ async function handleStaffButton(interaction, action, event) {
   }
 
   if (action === 'maybe') {
-    const updatedEvent = upsertResponse(event.id, interaction.user.id, {
+    const updatedEvent = upsertResponseByIdAndGuild(event.id, interaction.guildId, interaction.user.id, {
       ...baseResponse,
       status: 'maybe'
     });
@@ -528,7 +541,7 @@ async function handleStaffButton(interaction, action, event) {
   }
 
   if (action === 'unavailable') {
-    const updatedEvent = upsertResponse(event.id, interaction.user.id, {
+    const updatedEvent = upsertResponseByIdAndGuild(event.id, interaction.guildId, interaction.user.id, {
       ...baseResponse,
       status: 'unavailable',
       role: null,
@@ -564,7 +577,7 @@ async function handleManagerButton(interaction, action, event) {
   }
 
   if (action === 'lock') {
-    const updatedEvent = updateEvent(event.id, { locked: !event.locked });
+    const updatedEvent = updateEventByIdAndGuild(event.id, interaction.guildId, { locked: !event.locked });
     await updateDashboard(interaction.client, updatedEvent);
     await interaction.reply({
       content: updatedEvent.locked ? 'Schedule locked.' : 'Schedule unlocked.',
@@ -614,7 +627,7 @@ async function handleManagerButton(interaction, action, event) {
   }
 
   if (action === 'delete') {
-    deleteEvent(event.id);
+    deleteEventByIdAndGuild(event.id, interaction.guildId);
     await interaction.reply({
       content: 'Event deleted.',
       ephemeral: true
@@ -643,7 +656,7 @@ async function handleSelectMenu(interaction, action, event) {
     return;
   }
 
-  const updatedEvent = upsertResponse(event.id, interaction.user.id, {
+  const updatedEvent = upsertResponseByIdAndGuild(event.id, interaction.guildId, interaction.user.id, {
     userId: interaction.user.id,
     displayName: interaction.member?.displayName || interaction.user.username,
     status: 'attending',
@@ -666,7 +679,7 @@ async function handleNotesModal(interaction, event) {
     return;
   }
 
-  const updatedEvent = upsertResponse(event.id, interaction.user.id, {
+  const updatedEvent = upsertResponseByIdAndGuild(event.id, interaction.guildId, interaction.user.id, {
     userId: interaction.user.id,
     displayName: interaction.member?.displayName || interaction.user.username,
     notes: getModalText(interaction, 'notes')
@@ -689,7 +702,7 @@ async function handleEditEventModal(interaction, event) {
   }
 
   const timeRange = parseTimeRange(getModalText(interaction, 'eventTime'));
-  const updatedEvent = updateEvent(event.id, {
+  const updatedEvent = updateEventByIdAndGuild(event.id, interaction.guildId, {
     name: getModalText(interaction, 'eventName'),
     date: getModalText(interaction, 'eventDate'),
     startTime: timeRange.startTime,
@@ -715,7 +728,8 @@ async function handleRequirementsModal(interaction, event) {
   }
 
   const requirementsText = getModalText(interaction, 'requirements');
-  const requiredRoles = Object.fromEntries(schedulableRoles.map((role) => [role, 0]));
+  const knownRoleNames = getRequiredRoleNames(event);
+  const requiredRoles = Object.fromEntries(knownRoleNames.map((role) => [role, 0]));
 
   for (const line of requirementsText.split('\n')) {
     const match = line.trim().match(/^([^:]+):\s*(\d+)$/);
@@ -724,7 +738,9 @@ async function handleRequirementsModal(interaction, event) {
       continue;
     }
 
-    const roleName = schedulableRoles.find((role) => role.toLowerCase() === match[1].trim().toLowerCase());
+    const submittedRoleName = match[1].trim();
+    const roleName = knownRoleNames.find((role) => role.toLowerCase() === submittedRoleName.toLowerCase())
+      || submittedRoleName;
 
     if (!roleName) {
       continue;
@@ -733,8 +749,39 @@ async function handleRequirementsModal(interaction, event) {
     requiredRoles[roleName] = Math.max(0, Number.parseInt(match[2], 10));
   }
 
-  const updatedEvent = updateEvent(event.id, { requiredRoles });
-  await updateDashboard(interaction.client, updatedEvent);
+  const updatedEvent = updateEventByIdAndGuild(event.id, interaction.guildId, { requiredRoles });
+
+  if (!updatedEvent) {
+    console.warn('[requiredRoles:saveFailed]', {
+      eventId: event.id,
+      guildId: interaction.guildId
+    });
+    await interaction.reply({
+      content: 'Could not save required roles for this server event.',
+      ephemeral: true
+    });
+    return;
+  }
+
+  const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent);
+
+  console.log('[requiredRoles:saved]', {
+    eventId: event.id,
+    guildId: interaction.guildId,
+    guildName: interaction.guild?.name || event.guildName || null,
+    requiredRoles,
+    dashboardUpdated
+  });
+
+  if (!dashboardUpdated) {
+    console.warn('[requiredRoles:dashboardRefreshFailed]', {
+      eventId: event.id,
+      guildId: interaction.guildId,
+      channelId: updatedEvent.channelId,
+      messageId: updatedEvent.messageId
+    });
+  }
+
   await interaction.reply({
     content: 'Required roles updated.',
     ephemeral: true
