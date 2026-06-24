@@ -12,14 +12,17 @@ VenueStaff Bot is a first working version of a Discord staff scheduling bot for 
   - I can't attend
   - Maybe
 - Staff role select menu:
-  - 🛡️ Security
-  - 🍸 Bartender
-  - 💃 Dancer
-  - 🎧 DJ
-  - 👋 Greeter
-  - 📸 Photographer
-  - ⭐ Host
-  - ⚙️ Other
+  - Security
+  - Bartender
+  - Dancer
+  - DJ
+  - Greeter
+  - Photographer
+  - Entertainer
+  - Manager
+  - Owner
+  - Host
+  - Other
 - Start and end time dropdowns
 - Optional staff notes modal
 - Automatic dashboard updates
@@ -164,9 +167,23 @@ Security: 2
 Bartender: 1
 Dancer: 3
 DJ: 1
+Greeter: 0
+Photographer: 0
+Entertainer: 0
+Manager: 0
+Owner: 0
+Host: 0
 ```
 
-Managers can click `Set required roles` on the dashboard to change those numbers.
+Managers can click `Set required roles` on the dashboard to change those numbers. The modal uses one editable list, one role per line:
+
+```text
+Security: 2
+Photographer: 1
+Entertainer: 2
+Manager: 1
+Owner: 1
+```
 
 The dashboard shows coverage warnings such as:
 

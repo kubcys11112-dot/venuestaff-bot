@@ -21,15 +21,22 @@ const {
 const { isManager } = require('../commands/event');
 
 const roleOptions = [
-  { label: 'Security', emoji: '🛡️', value: 'Security' },
-  { label: 'Bartender', emoji: '🍸', value: 'Bartender' },
-  { label: 'Dancer', emoji: '💃', value: 'Dancer' },
-  { label: 'DJ', emoji: '🎧', value: 'DJ' },
-  { label: 'Greeter', emoji: '👋', value: 'Greeter' },
-  { label: 'Photographer', emoji: '📸', value: 'Photographer' },
-  { label: 'Host', emoji: '⭐', value: 'Host' },
-  { label: 'Other', emoji: '⚙️', value: 'Other' }
+  { label: 'Security', emoji: '\u{1F6E1}\uFE0F', value: 'Security' },
+  { label: 'Bartender', emoji: '\u{1F378}', value: 'Bartender' },
+  { label: 'Dancer', emoji: '\u{1F483}', value: 'Dancer' },
+  { label: 'DJ', emoji: '\u{1F3A7}', value: 'DJ' },
+  { label: 'Greeter', emoji: '\u{1F44B}', value: 'Greeter' },
+  { label: 'Photographer', emoji: '\u{1F4F8}', value: 'Photographer' },
+  { label: 'Entertainer', emoji: '\u{1F3A4}', value: 'Entertainer' },
+  { label: 'Manager', emoji: '\u{1F4CB}', value: 'Manager' },
+  { label: 'Owner', emoji: '\u{1F451}', value: 'Owner' },
+  { label: 'Host', emoji: '\u2B50', value: 'Host' },
+  { label: 'Other', emoji: '\u2699\uFE0F', value: 'Other' }
 ];
+
+const schedulableRoles = roleOptions
+  .map((role) => role.value)
+  .filter((role) => role !== 'Other');
 
 const staffTimeOptions = [
   '18:00',
@@ -408,15 +415,17 @@ function buildRequirementsModal(event) {
     .setCustomId(`event:requirementsModal:${event.id}`)
     .setTitle('Set required roles');
 
-  for (const role of ['Security', 'Bartender', 'Dancer', 'DJ']) {
-    modal.addComponents(new ActionRowBuilder().addComponents(new TextInputBuilder()
-      .setCustomId(role)
-      .setLabel(`${role} needed`)
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(2)
-      .setValue(String(requiredRoles[role] ?? 0))));
-  }
+  const requirementsInput = new TextInputBuilder()
+    .setCustomId('requirements')
+    .setLabel('Required staff, one per line')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setMaxLength(1000)
+    .setValue(schedulableRoles
+      .map((role) => `${role}: ${requiredRoles[role] ?? 0}`)
+      .join('\n'));
+
+  modal.addComponents(new ActionRowBuilder().addComponents(requirementsInput));
 
   return modal;
 }
@@ -705,11 +714,23 @@ async function handleRequirementsModal(interaction, event) {
     return;
   }
 
-  const requiredRoles = {};
+  const requirementsText = getModalText(interaction, 'requirements');
+  const requiredRoles = Object.fromEntries(schedulableRoles.map((role) => [role, 0]));
 
-  for (const role of ['Security', 'Bartender', 'Dancer', 'DJ']) {
-    const value = Number.parseInt(getModalText(interaction, role), 10);
-    requiredRoles[role] = Number.isNaN(value) ? 0 : Math.max(0, value);
+  for (const line of requirementsText.split('\n')) {
+    const match = line.trim().match(/^([^:]+):\s*(\d+)$/);
+
+    if (!match) {
+      continue;
+    }
+
+    const roleName = schedulableRoles.find((role) => role.toLowerCase() === match[1].trim().toLowerCase());
+
+    if (!roleName) {
+      continue;
+    }
+
+    requiredRoles[roleName] = Math.max(0, Number.parseInt(match[2], 10));
   }
 
   const updatedEvent = updateEvent(event.id, { requiredRoles });

@@ -71,7 +71,13 @@ function createEvent(eventDetails) {
       Security: 2,
       Bartender: 1,
       Dancer: 3,
-      DJ: 1
+      DJ: 1,
+      Greeter: 0,
+      Photographer: 0,
+      Entertainer: 0,
+      Manager: 0,
+      Owner: 0,
+      Host: 0
     },
     responses: {},
     guildId: null,
