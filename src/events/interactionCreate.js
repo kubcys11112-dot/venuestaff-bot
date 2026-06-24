@@ -300,31 +300,80 @@ function buildDashboardPayload(event) {
 
 async function updateDashboard(client, event, guildId) {
   if (!event) {
+    console.warn('[dashboard:updateSkipped]', {
+      reason: 'missing-event',
+      guildId
+    });
     return false;
   }
 
   if (!guildId || event.guildId !== guildId) {
+    console.warn('[dashboard:updateSkipped]', {
+      reason: 'guild-mismatch',
+      eventId: event.id,
+      eventGuildId: event.guildId,
+      interactionGuildId: guildId
+    });
     return false;
   }
 
   if (!event.channelId || !event.messageId) {
+    console.warn('[dashboard:updateSkipped]', {
+      reason: 'missing-dashboard-message',
+      eventId: event.id,
+      guildId,
+      channelId: event.channelId,
+      messageId: event.messageId
+    });
     return false;
   }
 
-  const channel = await client.channels.fetch(event.channelId).catch(() => null);
+  const channel = await client.channels.fetch(event.channelId).catch((error) => {
+    console.warn('[dashboard:channelFetchFailed]', {
+      eventId: event.id,
+      guildId,
+      channelId: event.channelId,
+      error: error.message
+    });
+    return null;
+  });
 
   if (!channel?.messages) {
+    console.warn('[dashboard:updateSkipped]', {
+      reason: 'channel-has-no-message-manager',
+      eventId: event.id,
+      guildId,
+      channelId: event.channelId
+    });
     return false;
   }
 
-  const message = await channel.messages.fetch(event.messageId).catch(() => null);
-
-  if (!message) {
+  try {
+    await channel.messages.edit(event.messageId, buildDashboardPayload(event));
+    console.log('[dashboard:updated]', {
+      eventId: event.id,
+      guildId,
+      channelId: event.channelId,
+      messageId: event.messageId
+    });
+    return true;
+  } catch (error) {
+    console.warn('[dashboard:updateFailed]', {
+      eventId: event.id,
+      guildId,
+      channelId: event.channelId,
+      messageId: event.messageId,
+      error: error.message,
+      code: error.code
+    });
     return false;
   }
+}
 
-  await message.edit(buildDashboardPayload(event));
-  return true;
+function getDashboardRefreshMessage(dashboardUpdated) {
+  return dashboardUpdated
+    ? ''
+    : '\n\nSaved, but I could not refresh the public dashboard. Please check the bot has View Channel, Send Messages, and Embed Links in the dashboard channel.';
 }
 
 function buildStaffControls(event, userId) {
@@ -518,9 +567,15 @@ async function handleStaffButton(interaction, action, event) {
       status: 'attending'
     });
 
-    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
+    console.log('[staffResponse:saved]', {
+      eventId: event.id,
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      status: 'attending'
+    });
+    const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
-      content: 'Marked as attending. Choose your role and available times.',
+      content: `Marked as attending. Choose your role and available times.${getDashboardRefreshMessage(dashboardUpdated)}`,
       components: buildStaffControls(updatedEvent, interaction.user.id),
       ephemeral: true
     });
@@ -533,9 +588,15 @@ async function handleStaffButton(interaction, action, event) {
       status: 'maybe'
     });
 
-    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
+    console.log('[staffResponse:saved]', {
+      eventId: event.id,
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      status: 'maybe'
+    });
+    const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
-      content: 'Marked as maybe. You can come back and change this any time before the schedule is locked.',
+      content: `Marked as maybe. You can come back and change this any time before the schedule is locked.${getDashboardRefreshMessage(dashboardUpdated)}`,
       ephemeral: true
     });
     return;
@@ -550,9 +611,15 @@ async function handleStaffButton(interaction, action, event) {
       endTime: null
     });
 
-    await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
+    console.log('[staffResponse:saved]', {
+      eventId: event.id,
+      guildId: interaction.guildId,
+      userId: interaction.user.id,
+      status: 'unavailable'
+    });
+    const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
     await interaction.reply({
-      content: "Marked as can't attend. Thanks for updating the schedule.",
+      content: `Marked as can't attend. Thanks for updating the schedule.${getDashboardRefreshMessage(dashboardUpdated)}`,
       ephemeral: true
     });
   }
@@ -664,9 +731,16 @@ async function handleSelectMenu(interaction, action, event) {
     [field]: interaction.values[0]
   });
 
-  await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
+  console.log('[staffResponse:saved]', {
+    eventId: event.id,
+    guildId: interaction.guildId,
+    userId: interaction.user.id,
+    field,
+    value: interaction.values[0]
+  });
+  const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
   await interaction.update({
-    content: 'Saved. Choose or adjust anything else you need.',
+    content: `Saved. Choose or adjust anything else you need.${getDashboardRefreshMessage(dashboardUpdated)}`,
     components: buildStaffControls(updatedEvent, interaction.user.id)
   });
 }
@@ -686,9 +760,9 @@ async function handleNotesModal(interaction, event) {
     notes: getModalText(interaction, 'notes')
   });
 
-  await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
+  const dashboardUpdated = await updateDashboard(interaction.client, updatedEvent, interaction.guildId);
   await interaction.reply({
-    content: 'Notes saved.',
+    content: `Notes saved.${getDashboardRefreshMessage(dashboardUpdated)}`,
     ephemeral: true
   });
 }

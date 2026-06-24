@@ -86,6 +86,7 @@ Members with Administrator or Manage Server permission can create and manage eve
 
 Recommended bot permissions:
 
+- View Channel
 - Send Messages
 - Embed Links
 - Attach Files
